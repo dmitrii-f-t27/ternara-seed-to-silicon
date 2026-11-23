@@ -14,6 +14,7 @@ from .organs import ORGAN_ORDER, ORGANS, train_organ_seed
 from .pack5 import verify_all_reserved_fault_bytes
 from .plug_and_learn import MODULES, attach_and_adapt_module
 from .q27_emit import export_and_compile_q27
+from .relays import MESH_RELAYS, probe_mesh_relays, recommend_best_relays
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
@@ -143,6 +144,7 @@ def cmd_matrix(args: argparse.Namespace) -> int:
         "pack5_reserved_bytes_rejected": f"{rej}/{total_res}",
         "organs": organs_summary,
         "plug_and_learn_proofs": plug_proofs,
+        "mesh_relays": [r.to_dict() for r in MESH_RELAYS],
     }
     matrix_path = out_dir / "seed_matrix.json"
     matrix_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -154,6 +156,35 @@ def cmd_matrix(args: argparse.Namespace) -> int:
             f"verilog={o['verilog_lines']:4d}L mesh={o['mesh_proof']['base_global_acc']*100:4.1f}%->"
             f"{o['mesh_proof']['collective_mesh_global_acc']*100:4.1f}% (rej {o['mesh_proof']['deltas_rejected']} poison)"
         )
+    return 0
+
+
+
+def cmd_best_server(args: argparse.Namespace) -> int:
+    results = probe_mesh_relays(samples=args.samples, timeout_s=args.timeout)
+    rec = recommend_best_relays(results)
+    if args.json:
+        print(json.dumps(rec, indent=2))
+        return 0
+    print("=== Ternara Mesh — Lowest-Ping Relay Discovery ===")
+    for i, r in enumerate(results, start=1):
+        if r.reachable and r.min_rtt_ms is not None and r.median_rtt_ms is not None:
+            tag = "  <-- RECOMMENDED" if i == 1 else ""
+            print(
+                f"  #{i} {r.min_rtt_ms:6.1f} ms (med {r.median_rtt_ms:6.1f} ms, jit {r.jitter_ms:5.1f} ms) | "
+                f"{r.relay_id:10s} | {r.city:28s} | {r.mesh_endpoint}{tag}"
+            )
+        else:
+            print(f"  #{i}   UNREACHABLE                         | {r.relay_id:10s} | {r.city:28s} | {r.mesh_endpoint}")
+    print(f"\nRecommended primary : {rec['primary_relay']} -> {rec['primary_endpoint']} ({rec['primary_min_rtt_ms']} ms)")
+    if rec.get("backup_relay"):
+        print(f"Recommended backup  : {rec['backup_relay']} -> {rec['backup_endpoint']} ({rec['backup_min_rtt_ms']} ms)")
+    if rec.get("fastest_regional_relay") and rec["fastest_regional_relay"] != rec["primary_relay"]:
+        print(
+            f"Fastest direct region: {rec['fastest_regional_relay']} -> "
+            f"{rec['fastest_regional_endpoint']} ({rec['fastest_regional_min_rtt_ms']} ms)"
+        )
+    print(f"Connect command     : {rec['connect_hint']}")
     return 0
 
 
@@ -189,6 +220,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_mx.add_argument("--out-dir", default="build/matrix")
     p_mx.add_argument("--no-compile", action="store_true")
     p_mx.set_defaults(func=cmd_matrix)
+
+    p_bs = sub.add_parser("best-server", help="Probe global Ternara Mesh relays and recommend lowest-ping server")
+    p_bs.add_argument("--samples", type=int, default=3, help="TCP RTT samples per relay")
+    p_bs.add_argument("--timeout", type=float, default=1.8, help="Per-probe TCP timeout in seconds")
+    p_bs.add_argument("--json", action="store_true", help="Output structured JSON report")
+    p_bs.set_defaults(func=cmd_best_server)
 
     return p
 
