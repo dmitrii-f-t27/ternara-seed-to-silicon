@@ -434,7 +434,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_con.add_argument("--env-seed", type=int, default=101)
     p_con.set_defaults(func=cmd_connect)
 
-    p_ap = sub.add_parser("ax7203-prep", help="Generate complete 0%-Vivado AX7203 top Verilog, XDC, openxc7 build script, and optional UART RTL sim")
+    p_ap = sub.add_parser("ax7203-prep", help="Generate complete zero-Vivado AX7203 top Verilog, XDC, openxc7 build script, and optional UART RTL sim")
     p_ap.add_argument("--organ", choices=ORGAN_ORDER, default="reflex")
     p_ap.add_argument("--out-dir", default="build/ax7203_reflex")
     p_ap.add_argument("--sim-uart", action="store_true", help="Run full 8N1 UART bit-banged RTL simulation on exact top Verilog")
