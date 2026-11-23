@@ -93,6 +93,26 @@ class MeshCoordinator:
                 base_proof_acc=round(base_acc, 4),
                 collective_proof_acc=round(base_acc, 4),
             )
+            # Restore persisted state if present on volume and matching anchor base_sha256
+            odir = self.state_dir / oid
+            meta_f = odir / "status.json"
+            col_f = odir / "collective.tseed.bin"
+            deltas_f = odir / "deltas.hex.json"
+            if meta_f.is_file() and col_f.is_file():
+                try:
+                    saved = json.loads(meta_f.read_text(encoding="utf-8"))
+                    if saved.get("base_sha256") == base.sha256():
+                        st.collective_cart = SeedCartridge.from_bytes(col_f.read_bytes())
+                        st.round_num = int(saved.get("round", 0))
+                        st.deltas_rejected = int(saved.get("deltas_rejected", 0))
+                        st.corrupt_packets = int(saved.get("corrupt_packets", 0))
+                        st.collective_proof_acc = float(saved.get("collective_proof_acc", base_acc))
+                        st.total_delta_bytes = int(saved.get("total_delta_bytes", 0))
+                        if deltas_f.is_file():
+                            for h in json.loads(deltas_f.read_text(encoding="utf-8")):
+                                st.accepted_deltas.append(MeshDelta.from_bytes(bytes.fromhex(h)))
+                except Exception:
+                    pass
             self.states[oid] = st
             self._persist_organ(st)
 
@@ -111,8 +131,16 @@ class MeshCoordinator:
             "deltas_accepted": len(st.accepted_deltas),
             "deltas_rejected": st.deltas_rejected,
             "corrupt_packets": st.corrupt_packets,
+            "total_delta_bytes": st.total_delta_bytes,
         }
         (odir / "status.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+        try:
+            (odir / "deltas.hex.json").write_text(
+                json.dumps([d.to_bytes().hex() for d in st.accepted_deltas]),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
 
     def get_seed(self, organ_id: str, anchor: bool = False) -> Optional[Tuple[bytes, Dict[str, str]]]:
         with self._lock:
@@ -256,13 +284,21 @@ def create_mesh_server(
     coord = coordinator if coordinator is not None else MeshCoordinator(state_dir=state_dir)
 
     class Handler(BaseHTTPRequestHandler):
+        server_version = "TernaraMesh"
+
+        def setup(self) -> None:
+            super().setup()
+            self.connection.settimeout(10)
+
         def log_message(self, format: str, *args: object) -> None:
             return
 
         def _send_json(self, code: int, obj: Dict[str, object]) -> None:
             body = (json.dumps(obj, indent=2) + "\n").encode("utf-8")
             self.send_response(int(code))
-            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -291,6 +327,8 @@ def create_mesh_server(
                 raw, headers = res
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Content-Length", str(len(raw)))
                 for k, v in headers.items():
                     self.send_header(k, v)
@@ -309,7 +347,10 @@ def create_mesh_server(
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid Content-Length"})
                 return
-            raw = self.rfile.read(length) if length > 0 else b""
+            if not 0 < length <= 8192:
+                self._send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "invalid_delta_size"})
+                return
+            raw = self.rfile.read(length)
             code, payload = coord.submit_delta_bytes(raw)
             self._send_json(code, payload)
 
