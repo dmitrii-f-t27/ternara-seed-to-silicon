@@ -6,7 +6,12 @@ Built on the **Q27 v2** (`версия 2`) ternary hardware language and open-so
 
 > **Hardware Transparency Notice:** Current targets are commercial **binary FPGAs** (Lattice iCE40, Lattice ECP5, Xilinx Artix-7, AMD UltraScale+) emulating balanced ternary logic via `pack5` (`5 trits/byte`, radix-243, `13/13` hardware fault bytes rejected) and multiplier-free sign-select LUT logic (`0 DSP`). This repository does not claim physical 3-voltage-level ternary silicon.
 >
-> **Verification Boundary:** All 5 flagship organs in this repo are **trained, bit-exact integer-verified (`0` diff), and compiled by the real `q27rtl2` compiler (`--profile q27-rtl-machine-v2`) into 0-DSP SystemVerilog (`design.sv`, `0` overflow checks, `0` double-writes)**, ready for live FPGA bitstream flashing. Live AX7203 board proofs for Ternara's B-XQ-S / Tetris AI / 4-in-a-Row cores live on [ternara.net](https://www.ternara.net).
+> **Verification Boundary (Live Physical AX7203 Silicon Verified!):**
+> - **`Ternara-Reflex` (`reflex`) — VERIFIED ON LIVE PHYSICAL ALINX AX7203 (`XC7A200T`, IDCODE `0x03636093`, 0% Vivado, `3,752` LUT = `1.39%`, `0 DSP`, `Fmax = 93.96 MHz`, XADC `38.78 °C`):**
+>   - Live base silicon inference (`240` samples): `87.5%`, **`0` bit-exact mismatches**, **`3` ticks (`120 ns` @ 25 MHz)**, **`0` HW errors**.
+>   - Live on-chip `Plug-and-Learn` on the **exact same flashed bitstream** (`0` resynthesis, `160 ns` on-chip `обуч_вкл` write): `bosch_bmi270_imu` **`33.8% → 93.8%`** (`+60.0%`, `0` diff) and `bent_rotor_esc` **`45.0% → 95.4%`** (`+50.4%`, `0` diff).
+>   - Live `Ternara Mesh` → physical AX7203 closed loop (`6` honest nodes, `2/2` poison rejected, `238 B` avg delta): **`28.7% → 93.1%`** (`+64.4%`, `0` diff, `0` HW errors). See [`evidence/ax7203_reflex_live_silicon_receipt.json`](evidence/ax7203_reflex_live_silicon_receipt.json).
+> - **All 5 organs (`guard`, `reflex`, `sentinel`, `tick`, `audio`):** compiled by real `q27rtl2` into `0-DSP` SystemVerilog and verified `0`-diff in `iverilog`/`vvp` (`32/32 pytest PASS`).
 
 ---
 
