@@ -11,6 +11,10 @@ Built on the **Q27 v2** (`версия 2`) ternary hardware language and open-so
 >   - Live base silicon inference (`240` samples): `87.5%`, **`0` bit-exact mismatches**, **`3` ticks (`120 ns` @ 25 MHz)**, **`0` HW errors**.
 >   - Live on-chip `Plug-and-Learn` on the **exact same flashed bitstream** (`0` resynthesis, `160 ns` on-chip `обуч_вкл` write): `bosch_bmi270_imu` **`33.8% → 93.8%`** (`+60.0%`, `0` diff) and `bent_rotor_esc` **`45.0% → 95.4%`** (`+50.4%`, `0` diff).
 >   - Live `Ternara Mesh` → physical AX7203 closed loop (`6` honest nodes, `2/2` poison rejected, `238 B` avg delta): **`28.7% → 93.1%`** (`+64.4%`, `0` diff, `0` HW errors). See [`evidence/ax7203_reflex_live_silicon_receipt.json`](evidence/ax7203_reflex_live_silicon_receipt.json).
+> - **`Ternara-Guard` (`guard`) — VERIFIED ON LIVE PHYSICAL ALINX AX7203 (`XC7A200T`, IDCODE `0x03636093`, 0% Vivado, `3,560` LUT = `1.32%`, `0 DSP`, `Fmax = 84.72 MHz`, XADC `38.92 °C`):**
+>   - Live base silicon inference (`240` samples): `92.1%`, **`0` bit-exact mismatches**, **`3` ticks (`120 ns` @ 25 MHz)**, **`0` HW errors**.
+>   - Live on-chip `Plug-and-Learn` on the **exact same flashed bitstream** (`0` resynthesis, `120 ns` on-chip `обуч_вкл` write): `can_fd_new_ecu` **`92.5% → 95.4%`** (`0` diff, `0` HW errors).
+>   - Live `Ternara Mesh` → physical AX7203 closed loop (`6` honest nodes, `2/2` poison rejected, `234 B` avg delta): **`35.0% → 86.2%`** (`+51.2%`, `0` diff, `0` HW errors). See [`evidence/ax7203_guard_live_silicon_receipt.json`](evidence/ax7203_guard_live_silicon_receipt.json).
 > - **All 5 organs (`guard`, `reflex`, `sentinel`, `tick`, `audio`):** compiled by real `q27rtl2` into `0-DSP` SystemVerilog and verified `0`-diff in `iverilog`/`vvp` (`32/32 pytest PASS`).
 
 ---
@@ -77,7 +81,7 @@ python3 -m ternara_seed.cli mesh-sim --organ reflex --nodes 6 --poison 2
 python3 -m ternara_seed.cli best-server --samples 3
 python3 -m ternara_seed.cli verify-rtl --organ all
 python3 -m ternara_seed.cli mesh-server --host 127.0.0.1 --port 8795
-python3 -m ternara_seed.cli connect --organ guard --node-id fpga-01 --url http://127.0.0.1:8795
+python3 -m ternara_seed.cli connect --organ guard --node-id fpga-01 --url https://www.ternara.net/api/mesh
 python3 -m ternara_seed.cli matrix --out-dir build/matrix
 pytest -v
 ```

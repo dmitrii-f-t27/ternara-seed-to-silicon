@@ -41,10 +41,10 @@ MESH_RELAYS: Tuple[MeshRelayNode, ...] = (
         city="Nearest of 330+ PoPs",
         provider="Cloudflare Edge",
         tier="anycast_primary",
-        mesh_endpoint="wss://mesh.ternara.net/v1/delta",
+        mesh_endpoint="https://www.ternara.net/api/mesh",
         probe_host="www.ternara.net",
         probe_port=443,
-        browser_probe_url="https://www.ternara.net/robots.txt",
+        browser_probe_url="https://www.ternara.net/api/mesh/v1/health",
         notes="Recommended default: single BGP Anycast address routes every FPGA to its nearest PoP (<25 ms typical).",
     ),
     MeshRelayNode(

@@ -16,7 +16,7 @@ def test_relay_catalog_covers_global_regions_and_anycast() -> None:
     regions = {r.region for r in MESH_RELAYS}
     assert {"Global Anycast", "South America", "North America", "Europe", "Asia-Pacific"}.issubset(regions)
     for r in MESH_RELAYS:
-        assert r.mesh_endpoint.startswith("wss://")
+        assert r.mesh_endpoint.startswith(("https://", "wss://"))
         assert r.browser_probe_url.startswith("https://")
         assert r.probe_port == 443
 
@@ -57,4 +57,4 @@ def test_offline_fallback_when_all_probes_fail() -> None:
     rec = recommend_best_relays(results)
     assert rec["status"] == "offline_fallback"
     assert rec["primary_relay"] == "anycast-cf"
-    assert rec["primary_endpoint"] == "wss://mesh.ternara.net/v1/delta"
+    assert rec["primary_endpoint"] == "https://www.ternara.net/api/mesh"
