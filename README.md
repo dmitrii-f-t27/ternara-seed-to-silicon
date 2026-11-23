@@ -70,6 +70,9 @@ python3 -m ternara_seed.cli grow --organ guard --board ax7203_xc7a200t --out-dir
 python3 -m ternara_seed.cli attach --module bent_rotor_esc
 python3 -m ternara_seed.cli mesh-sim --organ reflex --nodes 6 --poison 2
 python3 -m ternara_seed.cli best-server --samples 3
+python3 -m ternara_seed.cli verify-rtl --organ all
+python3 -m ternara_seed.cli mesh-server --host 127.0.0.1 --port 8795
+python3 -m ternara_seed.cli connect --organ guard --node-id fpga-01 --url http://127.0.0.1:8795
 python3 -m ternara_seed.cli matrix --out-dir build/matrix
 pytest -v
 ```

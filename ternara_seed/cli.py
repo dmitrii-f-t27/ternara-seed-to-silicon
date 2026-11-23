@@ -14,7 +14,10 @@ from .organs import ORGAN_ORDER, ORGANS, train_organ_seed
 from .pack5 import verify_all_reserved_fault_bytes
 from .plug_and_learn import MODULES, attach_and_adapt_module
 from .q27_emit import export_and_compile_q27
+from .mesh_client import connect_node_to_mesh
+from .mesh_server import create_mesh_server
 from .relays import MESH_RELAYS, probe_mesh_relays, recommend_best_relays
+from .rtl_sim import simulate_compiled_q27_rtl
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
@@ -188,6 +191,69 @@ def cmd_best_server(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def cmd_verify_rtl(args: argparse.Namespace) -> int:
+    from .organs import generate_organ_dataset
+    targets = list(ORGAN_ORDER) if args.organ == "all" else [args.organ]
+    out_root = Path(args.out_dir)
+    out_root.mkdir(parents=True, exist_ok=True)
+    results = []
+    for oid in targets:
+        cart, plan, _ = train_organ_seed(oid, board_id=args.board)
+        exp = export_and_compile_q27(cart, plan, out_root / oid, run_compiler=True)
+        if not exp.q27rtl2_compiled or not exp.verilog_path:
+            raise RuntimeError(f"q27rtl2 compile failed for {oid}: {exp.compiler_note}")
+        X_val, y_val = generate_organ_dataset(oid, n_samples=args.samples, seed=9999)
+        sim = simulate_compiled_q27_rtl(Path(exp.verilog_path).parent, X_val, y_val, cart)
+        results.append({
+            "organ_id": oid,
+            "verilog_lines": exp.verilog_lines,
+            **sim.to_dict(),
+        })
+        print(
+            f"  [{oid:8s}] iverilog/vvp RTL acc={sim.rtl_accuracy*100:5.1f}% "
+            f"oracle={sim.oracle_accuracy*100:5.1f}% diff={sim.bit_exact_mismatches} "
+            f"hw_err={sim.hardware_errors} lat={sim.observed_latency_ticks}ticks"
+        )
+    if args.json:
+        print(json.dumps({"rtl_verification": results}, indent=2))
+    return 0
+
+
+def cmd_mesh_server(args: argparse.Namespace) -> int:
+    server, coord = create_mesh_server(host=args.host, port=args.port, state_dir=args.state_dir)
+    print(f"Ternara Mesh Coordinator listening on http://{args.host}:{args.port} (state: {args.state_dir})")
+    print(f"Loaded {len(coord.states)} organs with deterministic Proof Gate + pack5 CRC32 verification.")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down Ternara Mesh Coordinator cleanly.")
+    finally:
+        server.server_close()
+    return 0
+
+
+def cmd_connect(args: argparse.Namespace) -> int:
+    url = args.url
+    if not url:
+        rec = recommend_best_relays(probe_mesh_relays(samples=2))
+        print(f"Auto-selected lowest-ping relay: {rec['primary_relay']} ({rec['primary_min_rtt_ms']} ms) -> {rec['primary_endpoint']}")
+        print("Pass --url http://127.0.0.1:8795 to connect to a running local/remote Mesh coordinator.")
+        return 0
+    cart, rep = connect_node_to_mesh(
+        server_url=url,
+        organ_id=args.organ,
+        node_id=args.node_id,
+        out_dir=args.out_dir,
+        board_id=args.board,
+        detect_jtag=args.detect_jtag,
+        poison=args.poison,
+        env_seed=args.env_seed,
+    )
+    print(json.dumps(rep.to_dict(), indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="ternara-seed", description="Ternara Seed-to-Silicon Q27 FPGA AI")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -226,6 +292,31 @@ def build_parser() -> argparse.ArgumentParser:
     p_bs.add_argument("--timeout", type=float, default=1.8, help="Per-probe TCP timeout in seconds")
     p_bs.add_argument("--json", action="store_true", help="Output structured JSON report")
     p_bs.set_defaults(func=cmd_best_server)
+
+    p_vr = sub.add_parser("verify-rtl", help="Compile Q27 v2 via q27rtl2 and simulate compiled design.sv in iverilog/vvp")
+    p_vr.add_argument("--organ", choices=ORGAN_ORDER + ["all"], default="all")
+    p_vr.add_argument("--board", default="ax7203_xc7a200t")
+    p_vr.add_argument("--samples", type=int, default=120)
+    p_vr.add_argument("--out-dir", default="build/rtl_verify")
+    p_vr.add_argument("--json", action="store_true")
+    p_vr.set_defaults(func=cmd_verify_rtl)
+
+    p_srv = sub.add_parser("mesh-server", help="Run a live Ternara Mesh HTTP/pack5 Coordinator server with Proof Gate")
+    p_srv.add_argument("--host", default="127.0.0.1")
+    p_srv.add_argument("--port", type=int, default=8795)
+    p_srv.add_argument("--state-dir", default="build/mesh_state")
+    p_srv.set_defaults(func=cmd_mesh_server)
+
+    p_con = sub.add_parser("connect", help="Connect an FPGA/host node to a live Ternara Mesh server and sync pack5 deltas")
+    p_con.add_argument("--url", default="", help="Live Mesh coordinator base URL (e.g. http://127.0.0.1:8795)")
+    p_con.add_argument("--organ", choices=ORGAN_ORDER, default="guard")
+    p_con.add_argument("--node-id", default="fpga-node-01")
+    p_con.add_argument("--board", default="ax7203_xc7a200t")
+    p_con.add_argument("--out-dir", default="build/mesh_node")
+    p_con.add_argument("--detect-jtag", action="store_true", help="Opt-in USB JTAG IDCODE board detection")
+    p_con.add_argument("--poison", action="store_true", help="Send adversarial poisoned delta to test Proof Gate rejection")
+    p_con.add_argument("--env-seed", type=int, default=101)
+    p_con.set_defaults(func=cmd_connect)
 
     return p
 
