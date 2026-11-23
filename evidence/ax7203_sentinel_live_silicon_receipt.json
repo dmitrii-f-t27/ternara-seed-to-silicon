@@ -1,0 +1,111 @@
+{
+  "board": "ALINX AX7203 (XC7A200T-2FBG484I)",
+  "jtag_idcode": "0x03636093",
+  "toolchain": "q27rtl2 (Q27 v2) + Yosys (-nodsp) + nextpnr-xilinx (openxc7) + prjxray + openFPGALoader SRAM-only (0% Vivado)",
+  "bitstream": "/Volumes/SSDD/Ternara/ternara-seed-to-silicon-2026-11-22/build/ax7203_sentinel/top.bit",
+  "bitstream_sha256": "8d43da0a7d96f36e85a1f8cd8f912605324f68794a8f83f59e1c7a8d6c539215",
+  "synth_resources": {
+    "slice_lutx": 3642,
+    "slice_lutx_total": 269200,
+    "slice_lutx_pct": 1.35,
+    "slice_ffx": 691,
+    "dsp48": 0,
+    "external_dram_bytes": 0,
+    "post_route_fmax_clk_mhz": 84.08,
+    "post_route_fmax_clk200_mhz": 1042.75
+  },
+  "xadc_die_temp_c": {
+    "before_load": null,
+    "after_load": null
+  },
+  "timestamp_utc": "2026-11-23T10:52:03Z",
+  "live_ping": {
+    "organ_code": 3,
+    "in_dim": 16,
+    "hidden_dim": 16,
+    "out_dim": 4,
+    "status": 1
+  },
+  "live_base_inference": {
+    "samples": 240,
+    "silicon_acc": 0.9542,
+    "oracle_acc": 0.9542,
+    "bit_exact_mismatches": 0,
+    "hardware_latency_ticks": 3,
+    "hardware_latency_ns_25mhz": 120,
+    "uart_total_ms": 1243.9,
+    "hardware_errors": 0,
+    "adapted_mask": 0
+  },
+  "live_plug_and_learn_same_bitstream": {
+    "piezo_cnc_spindle": {
+      "before": {
+        "samples": 240,
+        "silicon_acc": 0.95,
+        "oracle_acc": 0.95,
+        "bit_exact_mismatches": 0,
+        "hardware_latency_ticks": 3,
+        "hardware_latency_ns_25mhz": 120,
+        "uart_total_ms": 1324.85,
+        "hardware_errors": 0,
+        "adapted_mask": 0
+      },
+      "hotload": {
+        "classes_written": 4,
+        "uart_hotload_ms": 18.68,
+        "hardware_write_ns_25mhz": 160,
+        "learn_errors": 0,
+        "adapted_mask": 15
+      },
+      "after": {
+        "samples": 240,
+        "silicon_acc": 0.9625,
+        "oracle_acc": 0.9625,
+        "bit_exact_mismatches": 0,
+        "hardware_latency_ticks": 3,
+        "hardware_latency_ns_25mhz": 120,
+        "uart_total_ms": 1423.97,
+        "hardware_errors": 0,
+        "adapted_mask": 15
+      }
+    }
+  },
+  "live_mesh_to_silicon": {
+    "cloud_endpoint": "https://www.ternara.net/api/mesh",
+    "honest_accepted": 6,
+    "poison_rejected": 2,
+    "avg_delta_bytes": 250.0,
+    "cloud_seed_bytes": 470,
+    "cloud_seed_pull_ms": 221.0,
+    "collective_sha256": "65a62d9f21359b7ff43ce98eee15a5857f87be164de24f95a9a976df9a1fe51c",
+    "before_mesh_silicon": {
+      "samples": 160,
+      "silicon_acc": 0.2875,
+      "oracle_acc": 0.2875,
+      "bit_exact_mismatches": 0,
+      "hardware_latency_ticks": 3,
+      "hardware_latency_ns_25mhz": 120,
+      "uart_total_ms": 892.23,
+      "hardware_errors": 0,
+      "adapted_mask": 15
+    },
+    "hotload": {
+      "classes_written": 4,
+      "uart_hotload_ms": 15.7,
+      "hardware_write_ns_25mhz": 160,
+      "learn_errors": 0,
+      "adapted_mask": 15
+    },
+    "after_mesh_silicon": {
+      "samples": 160,
+      "silicon_acc": 0.95,
+      "oracle_acc": 0.95,
+      "bit_exact_mismatches": 0,
+      "hardware_latency_ticks": 3,
+      "hardware_latency_ns_25mhz": 120,
+      "uart_total_ms": 1040.28,
+      "hardware_errors": 0,
+      "adapted_mask": 15
+    }
+  }
+}

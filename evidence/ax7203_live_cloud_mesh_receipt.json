@@ -1,0 +1,58 @@
+{
+  "timestamp_utc": "2026-11-23T10:48:21Z",
+  "cloud_endpoint": "https://www.ternara.net/api/mesh",
+  "board": "ALINX AX7203 (XC7A200T-2FBG484I)",
+  "jtag_idcode": "0x03636093",
+  "serial_port": "/dev/cu.usbserial-1120",
+  "organ": "guard",
+  "live_ping": {
+    "organ_code": 1,
+    "in_dim": 16,
+    "hidden_dim": 16,
+    "out_dim": 3,
+    "status": 1
+  },
+  "cloud_seed_bytes": 430,
+  "cloud_seed_pull_ms": 206.8,
+  "cloud_collective_sha256": "fdbf5065cb315ea6dad0bc7de43360c28dcdd7a85ad1ad868e0daf1d810c32bd",
+  "cloud_guard_status": {
+    "round": 6,
+    "deltas_accepted": 6,
+    "deltas_rejected": 2,
+    "avg_delta_bytes": 240.5,
+    "base_proof_acc": 0.35,
+    "collective_proof_acc": 0.9563,
+    "base_sha256": "49ad5601b5cb0c6d73c683f286cfc1cfd8e35521bf6705709584f65c18dd6ca9",
+    "collective_sha256": "fdbf5065cb315ea6dad0bc7de43360c28dcdd7a85ad1ad868e0daf1d810c32bd",
+    "collective_bytes": 430
+  },
+  "ax7203_before_cloud_mesh": {
+    "samples": 160,
+    "silicon_acc": 0.35,
+    "oracle_acc": 0.35,
+    "bit_exact_mismatches": 0,
+    "hardware_latency_ticks": 3,
+    "hardware_latency_ns_25mhz": 120,
+    "uart_total_ms": 777.6,
+    "hardware_errors": 0,
+    "adapted_mask": 7
+  },
+  "ax7203_hotload_from_cloud": {
+    "classes_written": 3,
+    "uart_hotload_ms": 11.74,
+    "hardware_write_ns_25mhz": 120,
+    "learn_errors": 0,
+    "adapted_mask": 7
+  },
+  "ax7203_after_cloud_mesh": {
+    "samples": 160,
+    "silicon_acc": 0.9563,
+    "oracle_acc": 0.9563,
+    "bit_exact_mismatches": 0,
+    "hardware_latency_ticks": 3,
+    "hardware_latency_ns_25mhz": 120,
+    "uart_total_ms": 761.71,
+    "hardware_errors": 0,
+    "adapted_mask": 7
+  }
+}
