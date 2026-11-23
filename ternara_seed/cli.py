@@ -17,6 +17,13 @@ from .q27_emit import export_and_compile_q27
 from .mesh_client import connect_node_to_mesh
 from .mesh_server import create_mesh_server
 from .relays import MESH_RELAYS, probe_mesh_relays, recommend_best_relays
+from .ax7203_hw import (
+    AX7203SerialClient,
+    DEFAULT_UART_PORT,
+    flash_ax7203_sram_safe,
+    prepare_ax7203_project,
+    simulate_ax7203_uart_top,
+)
 from .rtl_sim import simulate_compiled_q27_rtl
 
 
@@ -254,6 +261,115 @@ def cmd_connect(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def cmd_ax7203_prep(args: argparse.Namespace) -> int:
+    from .organs import generate_organ_dataset
+    from .plug_and_learn import attach_and_adapt_module
+    import numpy as np
+
+    meta = prepare_ax7203_project(args.organ, args.out_dir)
+    if args.sim_uart:
+        cart, _, _ = train_organ_seed(args.organ, board_id="ax7203_xc7a200t")
+        if args.organ == "reflex":
+            mod = MODULES["bosch_bmi270_imu"]
+            seed = 9001
+            adapted, _ = attach_and_adapt_module(cart, "bosch_bmi270_imu", seed=seed)
+            rng = np.random.default_rng(seed)
+            shift = np.full(cart.in_dim, mod.offset_bias, dtype=np.float64) + rng.normal(0.0, 4.0, size=cart.in_dim)
+            gain = np.full(cart.in_dim, mod.gain_scale, dtype=np.float64)
+            X_t, y_t = generate_organ_dataset("reflex", 40, seed=seed + 2, domain_shift=shift, channel_gain=gain, permute_classes=dict(mod.swap_classes))
+            sim = simulate_ax7203_uart_top(meta["out_dir"], args.organ, cart, X_t, y_t, hot_load_cart=adapted)
+        else:
+            X_t, y_t = generate_organ_dataset(args.organ, 40, seed=9999)
+            sim = simulate_ax7203_uart_top(meta["out_dir"], args.organ, cart, X_t, y_t, hot_load_cart=None)
+        meta["uart_top_sim"] = sim.to_dict()
+    print(json.dumps(meta, indent=2))
+    return 0
+
+
+def cmd_ax7203_run(args: argparse.Namespace) -> int:
+    import time
+    import numpy as np
+    from .oracle import oracle_forward_batch
+    from .organs import generate_organ_dataset
+    from .plug_and_learn import attach_and_adapt_module
+
+    out: Dict[str, object] = {"organ_id": args.organ, "uart_port": args.port}
+    if args.bitstream:
+        out["flash"] = flash_ax7203_sram_safe(args.bitstream)
+        time.sleep(0.4)
+
+    cart, _, _ = train_organ_seed(args.organ, board_id="ax7203_xc7a200t")
+    if args.adapt_module:
+        mod = MODULES[args.adapt_module]
+        seed = 9001
+        adapted, prep = attach_and_adapt_module(cart, args.adapt_module, seed=seed)
+        rng = np.random.default_rng(seed)
+        shift = np.full(cart.in_dim, mod.offset_bias, dtype=np.float64) + rng.normal(0.0, 4.0, size=cart.in_dim)
+        gain = np.full(cart.in_dim, mod.gain_scale, dtype=np.float64)
+        perm = dict(mod.swap_classes) if mod.swap_classes else None
+        X_t, y_t = generate_organ_dataset(args.organ, args.samples, seed=seed + 2, domain_shift=shift, channel_gain=gain, permute_classes=perm)
+    else:
+        adapted = None
+        X_t, y_t = generate_organ_dataset(args.organ, args.samples, seed=9999)
+
+    _, _, oracle_before = oracle_forward_batch(cart, X_t)
+
+    with AX7203SerialClient(args.port) as board:
+        out["ping"] = board.ping()
+        t0 = time.perf_counter()
+        hw_preds_before = []
+        hw_lat = 0
+        hw_errs = 0
+        for i in range(X_t.shape[0]):
+            pred, lat, err, _ = board.infer(X_t[i])
+            hw_preds_before.append(pred)
+            hw_lat = lat
+            if err != 0:
+                hw_errs += 1
+        dt_before_ms = (time.perf_counter() - t0) * 1000.0
+        hw_preds_before_arr = np.array(hw_preds_before, dtype=np.int32)
+        out["before"] = {
+            "samples": int(X_t.shape[0]),
+            "silicon_acc": round(float(np.mean(hw_preds_before_arr == y_t)), 4),
+            "bit_exact_mismatches": int(np.sum(hw_preds_before_arr != oracle_before)),
+            "hardware_latency_ticks": int(hw_lat),
+            "hardware_latency_ns_at_25mhz": int(hw_lat) * 40,
+            "uart_total_ms": round(dt_before_ms, 2),
+            "hardware_errors": hw_errs,
+        }
+
+        if adapted is not None:
+            t_lrn = time.perf_counter()
+            lrn_errs = 0
+            mask = 0
+            for c in range(adapted.out_dim):
+                err, mask = board.learn_class(c, adapted.w2[c], int(adapted.b2[c]))
+                if err != 0:
+                    lrn_errs += 1
+            dt_lrn_ms = (time.perf_counter() - t_lrn) * 1000.0
+            _, _, oracle_after = oracle_forward_batch(adapted, X_t)
+            hw_preds_after = []
+            for i in range(X_t.shape[0]):
+                pred, lat, err, _ = board.infer(X_t[i])
+                hw_preds_after.append(pred)
+                if err != 0:
+                    hw_errs += 1
+            hw_preds_after_arr = np.array(hw_preds_after, dtype=np.int32)
+            out["after_live_bram_adapt"] = {
+                "module_id": args.adapt_module,
+                "uart_hotload_ms": round(dt_lrn_ms, 2),
+                "adapted_mask": int(mask),
+                "learn_errors": lrn_errs,
+                "silicon_acc": round(float(np.mean(hw_preds_after_arr == y_t)), 4),
+                "bit_exact_mismatches": int(np.sum(hw_preds_after_arr != oracle_after)),
+                "hardware_errors": hw_errs,
+            }
+
+    print(json.dumps(out, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="ternara-seed", description="Ternara Seed-to-Silicon Q27 FPGA AI")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -317,6 +433,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_con.add_argument("--poison", action="store_true", help="Send adversarial poisoned delta to test Proof Gate rejection")
     p_con.add_argument("--env-seed", type=int, default=101)
     p_con.set_defaults(func=cmd_connect)
+
+    p_ap = sub.add_parser("ax7203-prep", help="Generate complete 0%-Vivado AX7203 top Verilog, XDC, openxc7 build script, and optional UART RTL sim")
+    p_ap.add_argument("--organ", choices=ORGAN_ORDER, default="reflex")
+    p_ap.add_argument("--out-dir", default="build/ax7203_reflex")
+    p_ap.add_argument("--sim-uart", action="store_true", help="Run full 8N1 UART bit-banged RTL simulation on exact top Verilog")
+    p_ap.set_defaults(func=cmd_ax7203_prep)
+
+    p_ar = sub.add_parser("ax7203-run", help="Safe SRAM-only flash + live UART inference + live BRAM Plug-and-Learn on physical ALINX AX7203")
+    p_ar.add_argument("--organ", choices=ORGAN_ORDER, default="reflex")
+    p_ar.add_argument("--bitstream", default="", help="Optional path to top.bit for safe SRAM-only openFPGALoader flash")
+    p_ar.add_argument("--port", default=DEFAULT_UART_PORT)
+    p_ar.add_argument("--samples", type=int, default=120)
+    p_ar.add_argument("--adapt-module", choices=list(MODULES.keys()) + [""], default="")
+    p_ar.set_defaults(func=cmd_ax7203_run)
 
     return p
 
